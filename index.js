@@ -25,12 +25,23 @@ async function run() {
     const foodsCollection = client.db("freshReminderDB").collection("foods");
 
     // foods related apis
+    app.get("/foods", async(req, res)=>{
+      const email = req.query.email;
+      const query = {};
+      if (email) {
+        query.userEmail = email;
+        console.log(query);
+      }
+      const result = await foodsCollection.find(query).toArray();
+      res.send(result);
+    })
 
     app.get("/foods", async (req, res) => {
       const result = await foodsCollection.find().toArray();
       res.send(result);
     });
 
+    // food post api
     app.post("/foods", async (req, res) => {
       const food = req.body;
       const result = await foodsCollection.insertOne(food);
