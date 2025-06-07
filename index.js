@@ -1,6 +1,6 @@
 const express = require("express");
 const cors = require("cors");
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 3000;
@@ -25,7 +25,7 @@ async function run() {
     const foodsCollection = client.db("freshReminderDB").collection("foods");
 
     // foods related apis
-    app.get("/foods", async(req, res)=>{
+    app.get("/foods", async (req, res) => {
       const email = req.query.email;
       const query = {};
       if (email) {
@@ -34,10 +34,17 @@ async function run() {
       }
       const result = await foodsCollection.find(query).toArray();
       res.send(result);
-    })
+    });
 
     app.get("/foods", async (req, res) => {
       const result = await foodsCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/foods/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await foodsCollection.findOne(query);
       res.send(result);
     });
 
@@ -45,6 +52,14 @@ async function run() {
     app.post("/foods", async (req, res) => {
       const food = req.body;
       const result = await foodsCollection.insertOne(food);
+      res.send(result);
+    });
+
+    // food delete api
+    app.delete("/foods/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = { _id: new ObjectId(id) };
+      const result = await foodsCollection.deleteOne(query);
       res.send(result);
     });
 
