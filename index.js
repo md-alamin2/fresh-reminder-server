@@ -30,7 +30,6 @@ async function run() {
       const query = {};
       if (email) {
         query.userEmail = email;
-        console.log(query);
       }
       const result = await foodsCollection.find(query).toArray();
       res.send(result);
@@ -52,6 +51,20 @@ async function run() {
     app.post("/foods", async (req, res) => {
       const food = req.body;
       const result = await foodsCollection.insertOne(food);
+      res.send(result);
+    });
+
+    // food patch api
+    app.patch("/foods/:id", async (req, res) => {
+      const id = req.params.id;
+      const noteData = req.body;
+      const filter = { _id: new ObjectId(id) };
+      const updatedDoc = {
+        $set: {
+          noteData,
+        },
+      };
+      const result = await foodsCollection.updateOne(filter, updatedDoc);
       res.send(result);
     });
 
