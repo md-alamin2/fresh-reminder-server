@@ -47,17 +47,43 @@ async function run() {
       res.send(result);
     });
 
+    // get nearly expired food
+    app.get("/food/expiring-soon", async(req, res)=>{
+      const today = new Date();
+      const fiveDaysLater = new Date();
+      fiveDaysLater.setDate(today.getDate() + 5);
+      const query = {
+        expiryDate:{
+          $gte: today,
+          $lte: fiveDaysLater
+        }
+      };
+      const result = await foodsCollection.find(query).sort({ expiryDate: 1}).limit(6).toArray();
+      res.send(result)
+    })
+
+
     // food post api
     app.post("/foods", async (req, res) => {
       const food = req.body;
-      const result = await foodsCollection.insertOne(food);
+      const formattedFood ={
+          ...food,
+          expiryDate: new Date(food.expiryDate),
+          addedDate: new Date(food.addedDate)
+      }
+      const result = await foodsCollection.insertOne(formattedFood);
       res.send(result);
     });
 
      // update single food
     app.put("/foods/:id", async (req, res) => {
       const id = req.params.id;
-      const updatedFood = req.body;
+      const food = req.body;
+      const updatedFood={
+        ...food,
+        expiryDate: new Date(food.expiryDate),
+        addedDate: new Date(food.addedDate)
+      }
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updateDoc = {
