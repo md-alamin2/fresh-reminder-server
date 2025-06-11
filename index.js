@@ -1,6 +1,10 @@
 const express = require("express");
 const cors = require("cors");
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
+const admin = require("firebase-admin");
+const decoded = Buffer.from(process.env.FIREBASE_SERVICE_TOKEN, "base64").toString("utf8")
+const serviceAccount = JSON.parse(decoded);
+
 require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 3000;
@@ -17,6 +21,34 @@ const client = new MongoClient(process.env.URI, {
   },
 });
 
+// firebase middleware
+admin.initializeApp({
+  credential: admin.credential.cert(serviceAccount),
+});
+
+const verifyFirebaseToken = async (req, res, next) => {
+  const authHeader = req.headers?.authorization;
+  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+
+  const token = authHeader.split(" ")[1];
+  try {
+    const decoded = await admin.auth().verifyIdToken(token);
+    req.decoded = decoded;
+    next();
+  } catch {
+    return res.status(401).send({ message: "unauthorized access" });
+  }
+};
+
+const verifyFirebaseEmail= (req, res, next)=>{
+  if(req.query.email !== req.decoded.email){
+    return res.status(403).send({ message: "forbidden access" });
+  }
+  next();
+}
+
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
@@ -26,17 +58,17 @@ async function run() {
 
     // foods related apis
     app.get("/foods", async (req, res) => {
+      const result = await foodsCollection.find().toArray();
+      res.send(result);
+    });
+
+    app.get("/food", verifyFirebaseToken, verifyFirebaseEmail, async (req, res) => {
       const email = req.query.email;
       const query = {};
       if (email) {
         query.userEmail = email;
       }
       const result = await foodsCollection.find(query).toArray();
-      res.send(result);
-    });
-
-    app.get("/foods", async (req, res) => {
-      const result = await foodsCollection.find().toArray();
       res.send(result);
     });
 
@@ -48,48 +80,55 @@ async function run() {
     });
 
     // get nearly expired food
-    app.get("/food/expiring-soon", async(req, res)=>{
+    app.get("/food/expiring-soon", async (req, res) => {
       const today = new Date();
       const fiveDaysLater = new Date();
       fiveDaysLater.setDate(today.getDate() + 5);
       const query = {
-        expiryDate:{
+        expiryDate: {
           $gte: today,
-          $lte: fiveDaysLater
-        }
+          $lte: fiveDaysLater,
+        },
       };
-      const result = await foodsCollection.find(query).sort({ expiryDate: 1}).limit(6).toArray();
-      res.send(result)
-    })
-
+      const result = await foodsCollection
+        .find(query)
+        .sort({ expiryDate: 1 })
+        .limit(6)
+        .toArray();
+      res.send(result);
+    });
 
     // food post api
     app.post("/foods", async (req, res) => {
       const food = req.body;
-      const formattedFood ={
-          ...food,
-          expiryDate: new Date(food.expiryDate),
-          addedDate: new Date(food.addedDate)
-      }
+      const formattedFood = {
+        ...food,
+        expiryDate: new Date(food.expiryDate),
+        addedDate: new Date(food.addedDate),
+      };
       const result = await foodsCollection.insertOne(formattedFood);
       res.send(result);
     });
 
-     // update single food
+    // update single food
     app.put("/foods/:id", async (req, res) => {
       const id = req.params.id;
       const food = req.body;
-      const updatedFood={
+      const updatedFood = {
         ...food,
         expiryDate: new Date(food.expiryDate),
-        addedDate: new Date(food.addedDate)
-      }
+        addedDate: new Date(food.addedDate),
+      };
       const filter = { _id: new ObjectId(id) };
       const options = { upsert: true };
       const updateDoc = {
         $set: updatedFood,
       };
-      const result = await foodsCollection.updateOne(filter, updateDoc, options);
+      const result = await foodsCollection.updateOne(
+        filter,
+        updateDoc,
+        options
+      );
       res.send(result);
     });
 
@@ -116,10 +155,10 @@ async function run() {
     });
 
     // Send a ping to confirm a successful connection
-    await client.db("admin").command({ ping: 1 });
-    console.log(
-      "Pinged your deployment. You successfully connected to MongoDB!"
-    );
+    // await client.db("admin").command({ ping: 1 });
+    // console.log(
+    //   "Pinged your deployment. You successfully connected to MongoDB!"
+    // );
   } finally {
     // Ensures that the client will close when you finish/error
     // await client.close();
