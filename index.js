@@ -180,7 +180,7 @@ async function run() {
     });
 
     // food patch api
-    app.patch("/foods/:id", async (req, res) => {
+    app.patch("/foods/:id",verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const noteData = req.body;
       const filter = { _id: new ObjectId(id) };
