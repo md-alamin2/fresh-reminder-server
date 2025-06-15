@@ -1,11 +1,13 @@
 const express = require("express");
 const cors = require("cors");
+require("dotenv").config();
 const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const admin = require("firebase-admin");
-const decoded = Buffer.from(process.env.FIREBASE_SERVICE_TOKEN, "base64").toString("utf8")
+const decoded = Buffer.from(
+  process.env.FIREBASE_SERVICE_TOKEN,
+  "base64"
+).toString("utf8");
 const serviceAccount = JSON.parse(decoded);
-
-require("dotenv").config();
 const app = express();
 const port = process.env.PORT || 3000;
 
@@ -42,40 +44,72 @@ const verifyFirebaseToken = async (req, res, next) => {
   }
 };
 
-const verifyFirebaseEmail= (req, res, next)=>{
-  if(req.query.email !== req.decoded.email){
+const verifyFirebaseEmail = (req, res, next) => {
+  if (req.query.email !== req.decoded.email) {
     return res.status(403).send({ message: "forbidden access" });
   }
   next();
-}
+};
 
 async function run() {
   try {
     // Connect the client to the server	(optional starting in v4.7)
-    await client.connect();
+    // await client.connect();
 
     const foodsCollection = client.db("freshReminderDB").collection("foods");
 
     // foods related apis
+    // get all foods
     app.get("/foods", async (req, res) => {
       const result = await foodsCollection.find().toArray();
       res.send(result);
     });
 
-    app.get("/food", verifyFirebaseToken, verifyFirebaseEmail, async (req, res) => {
-      const email = req.query.email;
-      const query = {};
-      if (email) {
-        query.userEmail = email;
+    // get login user foods
+    app.get(
+      "/food",
+      verifyFirebaseToken,
+      verifyFirebaseEmail,
+      async (req, res) => {
+        const email = req.query.email;
+        const query = {};
+        if (email) {
+          query.userEmail = email;
+        }
+        const result = await foodsCollection.find(query).toArray();
+        res.send(result);
       }
-      const result = await foodsCollection.find(query).toArray();
-      res.send(result);
-    });
+    );
 
+    // get single food api
     app.get("/foods/:id", async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await foodsCollection.findOne(query);
+      res.send(result);
+    });
+
+    // get food by category
+    app.get("/foods/category/:category", async (req, res) => {
+      const category = req.params.category;
+      const query = { category: category };
+      const result = await foodsCollection.find(query).toArray();
+      res.send(result);
+    });
+
+    // get food by search
+    app.get("/food/search", async (req, res) => {
+      const searchValue = req.query.searchValue;
+      let query = {};
+      if (searchValue) {
+        query = {
+          $or: [
+            { title: { $regex: searchValue, $options: "i" } },
+            { category: { $regex: searchValue, $options: "i" } },
+          ],
+        };
+      }
+      const result = await foodsCollection.find(query).toArray();
       res.send(result);
     });
 
@@ -98,8 +132,21 @@ async function run() {
       res.send(result);
     });
 
+    // get expired food
+    app.get("/expired", async (req, res) => {
+      const today = new Date();
+      const query = {
+        expiryDate: {$lt: today}
+      };
+      const result = await foodsCollection
+        .find(query)
+        .sort({ expiryDate: -1 })
+        .toArray();
+      res.send(result);
+    });
+
     // food post api
-    app.post("/foods", async (req, res) => {
+    app.post("/foods", verifyFirebaseToken, async (req, res) => {
       const food = req.body;
       const formattedFood = {
         ...food,
@@ -111,7 +158,7 @@ async function run() {
     });
 
     // update single food
-    app.put("/foods/:id", async (req, res) => {
+    app.put("/foods/:id",verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const food = req.body;
       const updatedFood = {
@@ -147,7 +194,7 @@ async function run() {
     });
 
     // food delete api
-    app.delete("/foods/:id", async (req, res) => {
+    app.delete("/foods/:id",verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await foodsCollection.deleteOne(query);
@@ -171,5 +218,5 @@ app.get("/", async (req, res) => {
 });
 
 app.listen(port, () => {
-  console.log(`server is running on port: ${port}`);
+  // console.log(`server is running on port: ${port}`);
 });
