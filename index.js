@@ -72,10 +72,10 @@ async function run() {
       verifyFirebaseEmail,
       async (req, res) => {
         const email = req.query.email;
-        const query = {};
-        if (email) {
-          query.userEmail = email;
-        }
+        console.log(email);
+        const query = {
+          userEmail: email,
+        };
         const result = await foodsCollection.find(query).toArray();
         res.send(result);
       }
@@ -115,15 +115,27 @@ async function run() {
 
     // get nearly expired food
     app.get("/food/expiring-soon", async (req, res) => {
+      const user = req.query.email;
       const today = new Date();
       const fiveDaysLater = new Date();
       fiveDaysLater.setDate(today.getDate() + 5);
-      const query = {
-        expiryDate: {
-          $gte: today,
-          $lte: fiveDaysLater,
-        },
-      };
+      let query;
+      if (user) {
+        query = {
+          expiryDate: {
+            $gte: today,
+            $lte: fiveDaysLater,
+          },
+          userEmail: user,
+        };
+      } else {
+        query = {
+          expiryDate: {
+            $gte: today,
+            $lte: fiveDaysLater,
+          },
+        };
+      }
       const result = await foodsCollection
         .find(query)
         .sort({ expiryDate: 1 })
@@ -134,10 +146,19 @@ async function run() {
 
     // get expired food
     app.get("/expired", async (req, res) => {
+      const user = req.query.email;
       const today = new Date();
-      const query = {
-        expiryDate: {$lt: today}
-      };
+      let query;
+      if (user) {
+        query = {
+          expiryDate: { $lt: today },
+          userEmail: user,
+        };
+      } else {
+        query = {
+          expiryDate: { $lt: today },
+        };
+      }
       const result = await foodsCollection
         .find(query)
         .sort({ expiryDate: -1 })
@@ -158,7 +179,7 @@ async function run() {
     });
 
     // update single food
-    app.put("/foods/:id",verifyFirebaseToken, async (req, res) => {
+    app.put("/foods/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const food = req.body;
       const updatedFood = {
@@ -180,7 +201,7 @@ async function run() {
     });
 
     // food patch api
-    app.patch("/foods/:id",verifyFirebaseToken, async (req, res) => {
+    app.patch("/foods/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const noteData = req.body;
       const filter = { _id: new ObjectId(id) };
@@ -194,14 +215,13 @@ async function run() {
     });
 
     // food delete api
-    app.delete("/foods/:id",verifyFirebaseToken, async (req, res) => {
+    app.delete("/foods/:id", verifyFirebaseToken, async (req, res) => {
       const id = req.params.id;
       const query = { _id: new ObjectId(id) };
       const result = await foodsCollection.deleteOne(query);
       res.send(result);
     });
 
-    
     // Send a ping to confirm a successful connection
     // await client.db("admin").command({ ping: 1 });
     // console.log(
